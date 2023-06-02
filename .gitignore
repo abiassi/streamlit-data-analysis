@@ -1,0 +1,10 @@
+# Virtual environment
+venv/
+
+# Data files (already provided, no need to track them)
+data/
+
+# Other temporary or generated files
+__pycache__/
+*.pyc
+*.csv
