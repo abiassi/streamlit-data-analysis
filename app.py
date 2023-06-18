@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import datetime
 import matplotlib.pyplot as plt
+import geopandas as gpd
+from geolite2 import geolite2
+import pycountry
 
 
 # Load data
@@ -50,11 +53,11 @@ user_order_summary = active_users_with_orders_values.groupby('id_user').agg({
 # Flatten the columns
 user_order_summary.columns = ['user_id', 'total_order_value', 'order_count']
 
-# Group by date and count orders
-orders_per_day = orders.groupby(orders['delivery_date'].dt.date).size()
+# Group by week and count orders
+orders_per_week = orders.resample('W', on='delivery_date').size()
 
-# Group by date and count new users
-new_users_per_day = users.groupby(users['created_at'].dt.date).size()
+# Group by week and count new users
+new_users_per_month = users.resample('M', on='created_at').size()
 
 # Group by material and sum quantities
 material_order_count = orders.groupby('material_id')['quantity'].sum().reset_index(name='order_count')
@@ -67,6 +70,12 @@ top_3_materials = material_order_count.nlargest(3, 'order_count')
 
 # Exclude 'material_id' and 'id' columns
 top_3_materials = top_3_materials.drop(['material_id', 'id'], axis=1)
+
+# Group by finish and count orders
+finish_order_count = orders.groupby('finish').size().reset_index(name='order_count')
+
+# Select top 3 finishes
+top_3_finishes = finish_order_count.nlargest(3, 'order_count')
 
 # Calculate total annual revenue
 annual_revenue = orders_quotes_materials[orders_quotes_materials['delivery_date'].dt.year == datetime.datetime.now().year]['order_value'].sum()
@@ -96,9 +105,10 @@ users_orders = users_orders[users_orders['signup_to_first_delivery'] >= 0]
 # Drop duplicate user entries, keeping only the first entry
 users_orders = users_orders.drop_duplicates(subset='user_id', keep='first')
 
+
 # Now, plot the histogram as before
 figSignupToFirstDelivery, ax = plt.subplots()
-ax.hist(users_orders['signup_to_first_delivery'], bins=30, edgecolor='white')
+ax.hist(users_orders['signup_to_first_delivery'], bins=10, edgecolor='white')
 ax.set_xlabel('Days')
 ax.set_ylabel('Users')
 
@@ -107,36 +117,89 @@ average_order_value = orders_quotes_materials['order_value'].mean()
 
 # Plot Order Size Distribution
 figOrderSize, ax = plt.subplots()
-ax.hist(orders_quotes_materials['order_value'], bins=30, edgecolor='white')
+ax.hist(orders_quotes_materials['order_value'], bins=10, edgecolor='white')
 ax.set_xlabel('Order Value')
 ax.set_ylabel('Orders')
+
+# Function to convert IP to country
+def ip_to_country(ip):
+    try:
+        x = geolite2.reader().get(ip)
+        return x['country']['iso_code']
+    except:
+        return None
+    
+
+# Apply the function to the 'ip_address' column
+users['country'] = users['ip_address'].apply(ip_to_country)
+
+# Group by country
+country_counts = users['country'].value_counts().reset_index()
+country_counts.columns = ['country', 'count']
+
+
+# Function to convert 2-letter to 3-letter country codes
+def convert_alpha_2_to_3(alpha_2):
+    try:
+        return pycountry.countries.get(alpha_2=alpha_2).alpha_3
+    except AttributeError:
+        return None
+
+# Apply the function to the 'country' column
+country_counts['country'] = country_counts['country'].apply(convert_alpha_2_to_3)
+
+# Check the updated country codes
+print("Updated country codes in the country_counts data:", country_counts['country'].unique())
+
+# Read in the world geometry
+world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
+
+# Merge with the counts
+world = world.merge(country_counts, left_on = 'iso_a3', right_on = 'country', how='left')
+
+# Replace NaN values with 0
+world['count'] = world['count'].fillna(0)
+
+# Create the plot
+fig, ax = plt.subplots(1, 1, figsize=(15, 10))
+
+# Plot the world map with colors representing the user counts
+world.plot(column='count', 
+           ax=ax, 
+           legend=True, 
+           legend_kwds={'label': "User Counts by Country", 'orientation': "horizontal"}, 
+           cmap='coolwarm')
+
 
 
 
 # Write results to Streamlits
 st.title('CUTR Data Analysis')
-st.write("Total number of user:", len(users))
+st.write("Total number of users:", len(users))
 st.write("Number of churned users:", len(churned_users))
+st.write("Churned users are either deleted or haven't logged in over 6 months")
 st.write("Churn rate:", churn_rate)
 st.write("Number of active users:", len(active_users))
-st.write("Total number of orders", len(orders))
+st.write("Total number of orders:", len(orders))
 st.write("Average order value:", average_order_value)
 st.write("Top 3 materials:")
 st.write(top_3_materials)
+st.write("Top 3 finishes:")
+st.write(top_3_finishes)
 st.write("Total revenue generated:", orders_quotes_materials['order_value'].sum())
 st.write("Annual Average Revenue Per User (ARPU):", arpu)
 st.write("Top 5 active users with highest number of orders:")
 st.write(user_order_summary.nlargest(5, 'order_count')[['first_name', 'last_name', 'email', 'total_order_value', 'order_count']])
 st.write("Top 5 active users with highest total order value:")
 st.write(user_order_summary.nlargest(5, 'total_order_value')[['first_name', 'last_name', 'email', 'total_order_value', 'order_count']])
-st.write("Orders per day:")
-st.line_chart(orders_per_day)
-st.write("New users day:")
-st.line_chart(new_users_per_day)
+st.write("Orders per week:")
+st.line_chart(orders_per_week)
+st.write("New users per month:")
+st.line_chart(new_users_per_month)
 st.write("Time from Sign Up to First Delivery:")
 st.pyplot(figSignupToFirstDelivery)
-st.write("Order Size Distribution:")
+st.write("Order Value Distribution:")
 st.pyplot(figOrderSize)
-
-
+st.write("User by country:")
+st.pyplot(fig)
 
