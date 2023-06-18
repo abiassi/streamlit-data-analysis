@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import geopandas as gpd
 from geolite2 import geolite2
 import pycountry
+import numpy as np
 
 
 # Load data
@@ -115,11 +116,36 @@ ax.set_ylabel('Users')
 # Calculate average order value
 average_order_value = orders_quotes_materials['order_value'].mean()
 
-# Plot Order Size Distribution
+# Plot histograms
 figOrderSize, ax = plt.subplots()
-ax.hist(orders_quotes_materials['order_value'], bins=10, edgecolor='white')
+n, bins, patches = ax.hist(orders_quotes_materials['order_value'], bins=10, edgecolor='white', alpha=0.5, label='Order Value')
 ax.set_xlabel('Order Value')
-ax.set_ylabel('Orders')
+ax.set_ylabel('Number of Orders')
+
+# Create a new Y-axis for revenue
+ax2 = ax.twinx() 
+
+# Calculate total revenue for each bin
+revenues = []
+for i in range(len(bins)-1):
+    # All order values within the current bin
+    bin_orders = orders_quotes_materials[(orders_quotes_materials['order_value'] >= bins[i]) & (orders_quotes_materials['order_value'] < bins[i+1])]
+    
+    # Total revenue from the current bin
+    bin_revenue = bin_orders['order_value'].sum()
+    revenues.append(bin_revenue)
+
+# The X values for the line plot are the mid-points of the bins
+bin_mids = bins[:-1] + np.diff(bins) / 2
+
+# Plot revenue on the second Y-axis
+ax2.plot(bin_mids, revenues, color='red', label='Revenue')
+ax2.set_ylabel('Revenue')
+
+# Add legends
+lines, labels = ax.get_legend_handles_labels()
+lines2, labels2 = ax2.get_legend_handles_labels()
+ax2.legend(lines + lines2, labels + labels2, loc=0)
 
 # Function to convert IP to country
 def ip_to_country(ip):
@@ -147,9 +173,6 @@ def convert_alpha_2_to_3(alpha_2):
 
 # Apply the function to the 'country' column
 country_counts['country'] = country_counts['country'].apply(convert_alpha_2_to_3)
-
-# Check the updated country codes
-print("Updated country codes in the country_counts data:", country_counts['country'].unique())
 
 # Read in the world geometry
 world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
@@ -198,7 +221,7 @@ st.write("New users per month:")
 st.line_chart(new_users_per_month)
 st.write("Time from Sign Up to First Delivery:")
 st.pyplot(figSignupToFirstDelivery)
-st.write("Order Value Distribution:")
+st.write("Order Value and Revenue Distribution:")
 st.pyplot(figOrderSize)
 st.write("User by country:")
 st.pyplot(fig)
