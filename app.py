@@ -194,8 +194,6 @@ world.plot(column='count',
            cmap='coolwarm')
 
 
-
-
 # Write results to Streamlits
 st.title('CUTR Data Analysis')
 st.write("Total number of users:", len(users))
