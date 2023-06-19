@@ -21,12 +21,12 @@ users['last_login_at'] = pd.to_datetime(users['last_login_at'])
 orders['delivery_date'] = pd.to_datetime(orders['delivery_date'])
 
 # Define churned users as users who deleted their account, 
-# or haven't placed an order or logged in in the last 6 months
-six_months_ago = datetime.datetime.now() - datetime.timedelta(days=6*30)
+# or haven't placed an order or logged in in the last 3 months
+three_months_ago = datetime.datetime.now() - datetime.timedelta(days=3*30)
 churned_users = users[(users['deleted_at'].notna()) | 
-                  (users['last_login_at'] < six_months_ago) | 
+                  (users['last_login_at'] < three_months_ago) | 
                   (users['id'].isin(orders['user_id']) == False) | 
-                  (orders[orders['user_id'].isin(users['id'])]['delivery_date'].max() < six_months_ago)]
+                  (orders[orders['user_id'].isin(users['id'])]['delivery_date'].max() < three_months_ago)]
 
 # Calculate churn rate
 churn_rate = len(churned_users) / len(users)
@@ -198,7 +198,6 @@ world.plot(column='count',
 st.title('CUTR Data Analysis')
 st.write("Total number of users:", len(users))
 st.write("Number of churned users:", len(churned_users))
-st.write("Churned users are either deleted or haven't logged in over 6 months")
 st.write("Churn rate:", churn_rate)
 st.write("Number of active users:", len(active_users))
 st.write("Total number of orders:", len(orders))
