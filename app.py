@@ -25,7 +25,6 @@ orders['delivery_date'] = pd.to_datetime(orders['delivery_date'])
 three_months_ago = datetime.datetime.now() - datetime.timedelta(days=3*30)
 churned_users = users[(users['deleted_at'].notna()) | 
                   (users['last_login_at'] < three_months_ago) | 
-                  (users['id'].isin(orders['user_id']) == False) | 
                   (orders[orders['user_id'].isin(users['id'])]['delivery_date'].max() < three_months_ago)]
 
 # Calculate churn rate
